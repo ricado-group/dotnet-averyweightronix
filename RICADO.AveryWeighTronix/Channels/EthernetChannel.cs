@@ -1,0 +1,349 @@
+﻿using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
+using RICADO.Sockets;
+
+namespace RICADO.AveryWeighTronix.Channels
+{
+    internal class EthernetChannel : IChannel
+    {
+        #region Private Fields
+
+        private readonly string _remoteHost;
+        private readonly int _port;
+
+        private TcpClient? _client;
+
+        private readonly SemaphoreSlim _semaphore;
+
+        #endregion
+
+
+        #region Internal Properties
+
+        internal string RemoteHost => _remoteHost;
+
+        internal int Port => _port;
+
+        #endregion
+
+
+        #region Constructors
+
+        internal EthernetChannel(string remoteHost, int port)
+        {
+            _remoteHost = remoteHost;
+            _port = port;
+
+            _semaphore = new SemaphoreSlim(1, 1);
+        }
+
+        #endregion
+
+
+        #region Public Methods
+
+        public void Dispose()
+        {
+            try
+            {
+                _client?.Dispose();
+            }
+            catch
+            {
+            }
+            finally
+            {
+                _client = null;
+            }
+
+            _semaphore.Dispose();
+        }
+
+        #endregion
+
+
+        #region Internal Methods
+
+        public async Task InitializeAsync(int timeout, CancellationToken cancellationToken)
+        {
+            try
+            {
+                if (!_semaphore.Wait(0))
+                {
+                    await _semaphore.WaitAsync(cancellationToken);
+                }
+
+                destroyClient();
+
+                await initializeClient(timeout, cancellationToken);
+            }
+            finally
+            {
+                _semaphore.Release();
+            }
+        }
+
+        public async Task<ProcessMessageResult> ProcessMessageAsync(ReadOnlyMemory<byte> requestMessage, ProtocolType protocol, int timeout, int retries, CancellationToken cancellationToken)
+        {
+            int attempts = 0;
+            Memory<byte> responseMessage = new Memory<byte>();
+            int bytesSent = 0;
+            int packetsSent = 0;
+            int bytesReceived = 0;
+            int packetsReceived = 0;
+            DateTime startTimestamp = DateTime.UtcNow;
+
+            while (attempts <= retries)
+            {
+                try
+                {
+                    if (!_semaphore.Wait(0))
+                    {
+                        await _semaphore.WaitAsync(cancellationToken);
+                    }
+
+                    if (attempts > 0)
+                    {
+                        await destroyAndInitializeClient(timeout, cancellationToken);
+                    }
+
+                    // Send the Message
+                    SendMessageResult sendResult = await sendMessageAsync(requestMessage, protocol, timeout, cancellationToken);
+
+                    bytesSent += sendResult.Bytes;
+                    packetsSent += sendResult.Packets;
+
+                    // Receive a Response
+                    ReceiveMessageResult receiveResult = await receiveMessageAsync(protocol, timeout, cancellationToken);
+
+                    bytesReceived += receiveResult.Bytes;
+                    packetsReceived += receiveResult.Packets;
+                    responseMessage = receiveResult.Message;
+
+                    break;
+                }
+                catch (Exception)
+                {
+                    if (attempts >= retries)
+                    {
+                        throw;
+                    }
+                }
+                finally
+                {
+                    _semaphore.Release();
+                }
+
+                // Increment the Attempts
+                attempts++;
+            }
+
+            return new ProcessMessageResult
+            {
+                BytesSent = bytesSent,
+                PacketsSent = packetsSent,
+                BytesReceived = bytesReceived,
+                PacketsReceived = packetsReceived,
+                Duration = DateTime.UtcNow.Subtract(startTimestamp).TotalMilliseconds,
+                ResponseMessage = responseMessage,
+            };
+        }
+
+        #endregion
+
+
+        #region Private Methods
+
+        private Task initializeClient(int timeout, CancellationToken cancellationToken)
+        {
+            _client = new TcpClient(RemoteHost, Port);
+
+            return _client.ConnectAsync(timeout, cancellationToken);
+        }
+
+        private void destroyClient()
+        {
+            try
+            {
+                _client?.Dispose();
+            }
+            finally
+            {
+                _client = null;
+            }
+        }
+
+        private async Task destroyAndInitializeClient(int timeout, CancellationToken cancellationToken)
+        {
+            destroyClient();
+
+            try
+            {
+                await initializeClient(timeout, cancellationToken);
+            }
+            catch (ObjectDisposedException)
+            {
+                throw new AveryWeighTronixException("Failed to Re-Connect to Avery Weigh-Tronix Ethernet Device '" + RemoteHost + ":" + Port + "' - The underlying Socket Connection has been Closed");
+            }
+            catch (TimeoutException)
+            {
+                throw new AveryWeighTronixException("Failed to Re-Connect within the Timeout Period to Avery Weigh-Tronix Ethernet Device '" + RemoteHost + ":" + Port + "'");
+            }
+            catch (System.Net.Sockets.SocketException e)
+            {
+                throw new AveryWeighTronixException("Failed to Re-Connect to Avery Weigh-Tronix Ethernet Device '" + RemoteHost + ":" + Port + "'", e);
+            }
+        }
+
+        private async Task<SendMessageResult> sendMessageAsync(ReadOnlyMemory<byte> message, ProtocolType protocol, int timeout, CancellationToken cancellationToken)
+        {
+            SendMessageResult result = new SendMessageResult
+            {
+                Bytes = 0,
+                Packets = 0,
+            };
+
+            if(_client == null)
+            {
+                throw new AveryWeighTronixException("Failed to Send " + protocol + " Message to Avery Weigh-Tronix Ethernet Device '" + RemoteHost + ":" + Port + "' - The underlying Socket Connection has been Closed");
+            }
+
+            try
+            {
+                result.Bytes += await _client.SendAsync(message, timeout, cancellationToken);
+                result.Packets += 1;
+            }
+            catch (ObjectDisposedException)
+            {
+                throw new AveryWeighTronixException("Failed to Send " + protocol + " Message to Avery Weigh-Tronix Ethernet Device '" + RemoteHost + ":" + Port + "' - The underlying Socket Connection has been Closed");
+            }
+            catch (TimeoutException)
+            {
+                throw new AveryWeighTronixException("Failed to Send " + protocol + " Message within the Timeout Period to Avery Weigh-Tronix Ethernet Device '" + RemoteHost + ":" + Port + "'");
+            }
+            catch (System.Net.Sockets.SocketException e)
+            {
+                throw new AveryWeighTronixException("Failed to Send " + protocol + " Message to Avery Weigh-Tronix Ethernet Device '" + RemoteHost + ":" + Port + "'", e);
+            }
+
+            return result;
+        }
+
+        private async Task<ReceiveMessageResult> receiveMessageAsync(ProtocolType protocol, int timeout, CancellationToken cancellationToken)
+        {
+            ReceiveMessageResult result = new ReceiveMessageResult
+            {
+                Bytes = 0,
+                Packets = 0,
+                Message = new Memory<byte>(),
+            };
+
+            if(_client == null)
+            {
+                throw new AveryWeighTronixException("Failed to Receive " + protocol + " Message from Avery Weigh-Tronix Ethernet Device '" + RemoteHost + ":" + Port + "' - The underlying Socket Connection has been Closed");
+            }
+
+            try
+            {
+                List<byte> receivedData = new List<byte>();
+                DateTime startTimestamp = DateTime.UtcNow;
+
+                bool receiveCompleted = false;
+
+                while (DateTime.UtcNow.Subtract(startTimestamp).TotalMilliseconds < timeout && receiveCompleted == false)
+                {
+                    Memory<byte> buffer = new byte[100];
+                    TimeSpan receiveTimeout = TimeSpan.FromMilliseconds(timeout).Subtract(DateTime.UtcNow.Subtract(startTimestamp));
+
+                    if (receiveTimeout.TotalMilliseconds >= 50)
+                    {
+                        int receivedBytes = await _client.ReceiveAsync(buffer, receiveTimeout, cancellationToken);
+
+                        if (receivedBytes > 0)
+                        {
+                            receivedData.AddRange(buffer.Slice(0, receivedBytes).ToArray());
+
+                            result.Bytes += receivedBytes;
+                            result.Packets += 1;
+                        }
+                    }
+
+                    receiveCompleted = isReceiveCompleted(protocol, receivedData);
+                }
+
+                if (receivedData.Count == 0)
+                {
+                    throw new AveryWeighTronixException("Failed to Receive " + protocol + " Message from Avery Weigh-Tronix Ethernet Device '" + RemoteHost + ":" + Port + "' - No Data was Received");
+                }
+
+                if (receiveCompleted == false)
+                {
+                    throw new AveryWeighTronixException("Failed to Receive " + protocol + " Message within the Timeout Period from Avery Weigh-Tronix Ethernet Device '" + RemoteHost + ":" + Port + "'");
+                }
+
+                result.Message = trimReceivedData(protocol, receivedData);
+            }
+            catch (ObjectDisposedException)
+            {
+                throw new AveryWeighTronixException("Failed to Receive " + protocol + " Message from Avery Weigh-Tronix Ethernet Device '" + RemoteHost + ":" + Port + "' - The underlying Socket Connection has been Closed");
+            }
+            catch (TimeoutException)
+            {
+                throw new AveryWeighTronixException("Failed to Receive " + protocol + " Message within the Timeout Period from Avery Weigh-Tronix Ethernet Device  '" + RemoteHost + ":" + Port + "'");
+            }
+            catch (System.Net.Sockets.SocketException e)
+            {
+                throw new AveryWeighTronixException("Failed to Receive " + protocol + " Message from Avery Weigh-Tronix Ethernet Device  '" + RemoteHost + ":" + Port + "'", e);
+            }
+
+            return result;
+        }
+
+        private bool isReceiveCompleted(ProtocolType protocol, List<byte> receivedData)
+        {
+            if (receivedData.Count == 0)
+            {
+                return false;
+            }
+
+            byte stxByte = protocol == ProtocolType.SMA ? SMA.Response.STX : (byte)0;
+
+            if (receivedData.Contains(stxByte) == false)
+            {
+                return false;
+            }
+
+            byte etxByte = protocol == ProtocolType.SMA ? SMA.Response.ETX : (byte)0;
+
+            if (receivedData.Contains(etxByte) == false)
+            {
+                return false;
+            }
+
+            return true;
+        }
+
+        private Memory<byte> trimReceivedData(ProtocolType protocol, List<byte> receivedData)
+        {
+            if (receivedData.Count == 0)
+            {
+                return Memory<byte>.Empty;
+            }
+
+            byte stxByte = protocol == ProtocolType.SMA ? SMA.Response.STX : (byte)0;
+
+            int stxIndex = receivedData.IndexOf(stxByte);
+
+            byte etxByte = protocol == ProtocolType.SMA ? SMA.Response.ETX : (byte)0;
+
+            int etxIndex = receivedData.IndexOf(etxByte);
+
+            return receivedData.GetRange(stxIndex, etxIndex - stxIndex + 1).ToArray();
+        }
+
+        #endregion
+    }
+}
