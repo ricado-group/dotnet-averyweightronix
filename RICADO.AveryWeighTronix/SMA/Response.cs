@@ -41,7 +41,11 @@ namespace RICADO.AveryWeighTronix.SMA
 
         #region Constructor
 
+#if NETSTANDARD
+        protected Response(Request request, byte[] responseMessage)
+#else
         protected Response(Request request, Memory<byte> responseMessage)
+#endif
         {
             _request = request;
 
@@ -50,6 +54,19 @@ namespace RICADO.AveryWeighTronix.SMA
                 throw new SMAException("The SMA Response Message Length was too short");
             }
 
+#if NETSTANDARD
+            if (responseMessage[0] != STX)
+            {
+                throw new SMAException("Invalid or Missing STX");
+            }
+
+            if (responseMessage[responseMessage.Length - ETXLength] != ETX)
+            {
+                throw new SMAException("Invalid or Missing ETX");
+            }
+
+            string messageString = Encoding.ASCII.GetString(responseMessage.Skip(STXLength).Take(responseMessage.Length - STXLength - ETXLength).ToArray());
+#else
             if (responseMessage.Span[0] != STX)
             {
                 throw new SMAException("Invalid or Missing STX");
@@ -61,8 +78,9 @@ namespace RICADO.AveryWeighTronix.SMA
             }
 
             string messageString = Encoding.ASCII.GetString(responseMessage.Slice(STXLength, responseMessage.Length - STXLength - ETXLength).ToArray());
+#endif
 
-            if(messageString == "?")
+            if (messageString == "?")
             {
                 throw new SMAException("The SMA Command is not Supported by the Device");
             }

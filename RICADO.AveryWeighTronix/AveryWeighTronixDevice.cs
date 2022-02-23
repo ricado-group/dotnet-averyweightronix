@@ -20,7 +20,7 @@ namespace RICADO.AveryWeighTronix
         private bool _isInitialized = false;
         private readonly object _isInitializedLock = new object();
 
-        private IChannel? _channel;
+        private IChannel _channel;
 
         private ProtocolType _protocolType;
 
@@ -29,7 +29,7 @@ namespace RICADO.AveryWeighTronix
 
         #region Internal Properties
 
-        internal IChannel? Channel => _channel;
+        internal IChannel Channel => _channel;
 
         #endregion
 

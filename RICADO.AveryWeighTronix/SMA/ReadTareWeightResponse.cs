@@ -30,19 +30,32 @@ namespace RICADO.AveryWeighTronix.SMA
 
         #region Constructor
 
+#if NETSTANDARD
+        protected ReadTareWeightResponse(Request request, byte[] responseMessage) : base(request, responseMessage)
+        {
+        }
+#else
         protected ReadTareWeightResponse(Request request, Memory<byte> responseMessage) : base(request, responseMessage)
         {
         }
+#endif
 
         #endregion
 
 
         #region Public Methods
 
+#if NETSTANDARD
+        public static ReadTareWeightResponse UnpackResponseMessage(ReadTareWeightRequest request, byte[] responseMessage)
+        {
+            return new ReadTareWeightResponse(request, responseMessage);
+        }
+#else
         public static ReadTareWeightResponse UnpackResponseMessage(ReadTareWeightRequest request, Memory<byte> responseMessage)
         {
             return new ReadTareWeightResponse(request, responseMessage);
         }
+#endif
 
         #endregion
 

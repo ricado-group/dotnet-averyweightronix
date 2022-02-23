@@ -31,7 +31,11 @@ namespace RICADO.AveryWeighTronix.SMA
 
         #region Public Methods
 
+#if NETSTANDARD
+        public void ValidateResponseMessage(byte[] responseMessage)
+#else
         public void ValidateResponseMessage(Memory<byte> responseMessage)
+#endif
         {
             SetUnitOfMeasureResponse.ValidateResponseMessage(this, responseMessage);
         }

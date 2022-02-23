@@ -14,19 +14,32 @@ namespace RICADO.AveryWeighTronix.SMA
 
         #region Constructor
 
+#if NETSTANDARD
+        protected SetUnitOfMeasureResponse(Request request, byte[] responseMessage) : base(request, responseMessage)
+        {
+        }
+#else
         protected SetUnitOfMeasureResponse(Request request, Memory<byte> responseMessage) : base(request, responseMessage)
         {
         }
+#endif
 
         #endregion
 
 
         #region Public Methods
 
+#if NETSTANDARD
+        public static void ValidateResponseMessage(SetUnitOfMeasureRequest request, byte[] responseMessage)
+        {
+            _ = new SetUnitOfMeasureResponse(request, responseMessage);
+        }
+#else
         public static void ValidateResponseMessage(SetUnitOfMeasureRequest request, Memory<byte> responseMessage)
         {
             _ = new SetUnitOfMeasureResponse(request, responseMessage);
         }
+#endif
 
         #endregion
 

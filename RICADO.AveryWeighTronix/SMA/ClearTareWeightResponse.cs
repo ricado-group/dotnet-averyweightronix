@@ -14,19 +14,32 @@ namespace RICADO.AveryWeighTronix.SMA
 
         #region Constructor
 
+#if NETSTANDARD
+        protected ClearTareWeightResponse(Request request, byte[] responseMessage) : base(request, responseMessage)
+        {
+        }
+#else
         protected ClearTareWeightResponse(Request request, Memory<byte> responseMessage) : base(request, responseMessage)
         {
         }
+#endif
 
         #endregion
 
 
         #region Public Methods
 
+#if NETSTANDARD
+        public static void ValidateResponseMessage(ClearTareWeightRequest request, byte[] responseMessage)
+        {
+            _ = new ClearTareWeightResponse(request, responseMessage);
+        }
+#else
         public static void ValidateResponseMessage(ClearTareWeightRequest request, Memory<byte> responseMessage)
         {
             _ = new ClearTareWeightResponse(request, responseMessage);
         }
+#endif
 
         #endregion
 

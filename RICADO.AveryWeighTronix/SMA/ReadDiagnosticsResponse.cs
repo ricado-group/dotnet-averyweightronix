@@ -32,19 +32,32 @@ namespace RICADO.AveryWeighTronix.SMA
 
         #region Constructor
 
+#if NETSTANDARD
+        protected ReadDiagnosticsResponse(Request request, byte[] responseMessage) : base(request, responseMessage)
+        {
+        }
+#else
         protected ReadDiagnosticsResponse(Request request, Memory<byte> responseMessage) : base(request, responseMessage)
         {
         }
+#endif
 
         #endregion
 
 
         #region Public Methods
 
+#if NETSTANDARD
+        public static ReadDiagnosticsResponse UnpackResponseMessage(ReadDiagnosticsRequest request, byte[] responseMessage)
+        {
+            return new ReadDiagnosticsResponse(request, responseMessage);
+        }
+#else
         public static ReadDiagnosticsResponse UnpackResponseMessage(ReadDiagnosticsRequest request, Memory<byte> responseMessage)
         {
             return new ReadDiagnosticsResponse(request, responseMessage);
         }
+#endif
 
         #endregion
 

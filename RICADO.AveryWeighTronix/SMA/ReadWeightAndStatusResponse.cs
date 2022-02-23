@@ -36,19 +36,32 @@ namespace RICADO.AveryWeighTronix.SMA
 
         #region Constructor
 
+#if NETSTANDARD
+        protected ReadWeightAndStatusResponse(Request request, byte[] responseMessage) : base(request, responseMessage)
+        {
+        }
+#else
         protected ReadWeightAndStatusResponse(Request request, Memory<byte> responseMessage) : base(request, responseMessage)
         {
         }
+#endif
 
         #endregion
 
 
         #region Public Methods
 
+#if NETSTANDARD
+        public static ReadWeightAndStatusResponse UnpackResponseMessage(ReadWeightAndStatusRequest request, byte[] responseMessage)
+        {
+            return new ReadWeightAndStatusResponse(request, responseMessage);
+        }
+#else
         public static ReadWeightAndStatusResponse UnpackResponseMessage(ReadWeightAndStatusRequest request, Memory<byte> responseMessage)
         {
             return new ReadWeightAndStatusResponse(request, responseMessage);
         }
+#endif
 
         #endregion
 

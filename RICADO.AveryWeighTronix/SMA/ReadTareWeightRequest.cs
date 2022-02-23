@@ -16,10 +16,17 @@ namespace RICADO.AveryWeighTronix.SMA
 
         #region Public Methods
 
+#if NETSTANDARD
+        public ReadTareWeightResponse UnpackResponseMessage(byte[] responseMessage)
+        {
+            return ReadTareWeightResponse.UnpackResponseMessage(this, responseMessage);
+        }
+#else
         public ReadTareWeightResponse UnpackResponseMessage(Memory<byte> responseMessage)
         {
             return ReadTareWeightResponse.UnpackResponseMessage(this, responseMessage);
         }
+#endif
 
         public static ReadTareWeightRequest CreateNew(AveryWeighTronixDevice device)
         {

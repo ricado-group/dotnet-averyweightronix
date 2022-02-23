@@ -14,19 +14,32 @@ namespace RICADO.AveryWeighTronix.SMA
 
         #region Constructor
 
+#if NETSTANDARD
+        protected ZeroCommandResponse(Request request, byte[] responseMessage) : base(request, responseMessage)
+        {
+        }
+#else
         protected ZeroCommandResponse(Request request, Memory<byte> responseMessage) : base(request, responseMessage)
         {
         }
+#endif
 
         #endregion
 
 
         #region Public Methods
 
+#if NETSTANDARD
+        public static void ValidateResponseMessage(ZeroCommandRequest request, byte[] responseMessage)
+        {
+            _ = new ZeroCommandResponse(request, responseMessage);
+        }
+#else
         public static void ValidateResponseMessage(ZeroCommandRequest request, Memory<byte> responseMessage)
         {
             _ = new ZeroCommandResponse(request, responseMessage);
         }
+#endif
 
         #endregion
 

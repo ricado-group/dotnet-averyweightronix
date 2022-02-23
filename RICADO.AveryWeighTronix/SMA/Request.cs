@@ -39,7 +39,11 @@ namespace RICADO.AveryWeighTronix.SMA
 
         #region Public Methods
 
+#if NETSTANDARD
+        public byte[] BuildMessage()
+#else
         public ReadOnlyMemory<byte> BuildMessage()
+#endif
         {
             StringBuilder messageBuilder = new StringBuilder();
 

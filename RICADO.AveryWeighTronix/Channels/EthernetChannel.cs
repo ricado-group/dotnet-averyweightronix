@@ -14,7 +14,7 @@ namespace RICADO.AveryWeighTronix.Channels
         private readonly string _remoteHost;
         private readonly int _port;
 
-        private TcpClient? _client;
+        private TcpClient _client;
 
         private readonly SemaphoreSlim _semaphore;
 
@@ -86,15 +86,24 @@ namespace RICADO.AveryWeighTronix.Channels
             }
         }
 
+#if NETSTANDARD
+        public async Task<ProcessMessageResult> ProcessMessageAsync(byte[] requestMessage, ProtocolType protocol, int timeout, int retries, CancellationToken cancellationToken)
+#else
         public async Task<ProcessMessageResult> ProcessMessageAsync(ReadOnlyMemory<byte> requestMessage, ProtocolType protocol, int timeout, int retries, CancellationToken cancellationToken)
+#endif
         {
             int attempts = 0;
-            Memory<byte> responseMessage = new Memory<byte>();
             int bytesSent = 0;
             int packetsSent = 0;
             int bytesReceived = 0;
             int packetsReceived = 0;
             DateTime startTimestamp = DateTime.UtcNow;
+
+#if NETSTANDARD
+            byte[] responseMessage = new byte[0];
+#else
+            Memory<byte> responseMessage = new Memory<byte>();
+#endif
 
             while (attempts <= retries)
             {
@@ -198,7 +207,11 @@ namespace RICADO.AveryWeighTronix.Channels
             }
         }
 
+#if NETSTANDARD
+        private async Task<SendMessageResult> sendMessageAsync(byte[] message, ProtocolType protocol, int timeout, CancellationToken cancellationToken)
+#else
         private async Task<SendMessageResult> sendMessageAsync(ReadOnlyMemory<byte> message, ProtocolType protocol, int timeout, CancellationToken cancellationToken)
+#endif
         {
             SendMessageResult result = new SendMessageResult
             {
@@ -234,12 +247,21 @@ namespace RICADO.AveryWeighTronix.Channels
 
         private async Task<ReceiveMessageResult> receiveMessageAsync(ProtocolType protocol, int timeout, CancellationToken cancellationToken)
         {
+#if NETSTANDARD
+            ReceiveMessageResult result = new ReceiveMessageResult
+            {
+                Bytes = 0,
+                Packets = 0,
+                Message = new byte[0],
+            };
+#else
             ReceiveMessageResult result = new ReceiveMessageResult
             {
                 Bytes = 0,
                 Packets = 0,
                 Message = new Memory<byte>(),
             };
+#endif
 
             if(_client == null)
             {
@@ -255,7 +277,12 @@ namespace RICADO.AveryWeighTronix.Channels
 
                 while (DateTime.UtcNow.Subtract(startTimestamp).TotalMilliseconds < timeout && receiveCompleted == false)
                 {
+#if NETSTANDARD
+                    byte[] buffer = new byte[100];
+#else
                     Memory<byte> buffer = new byte[100];
+#endif
+
                     TimeSpan receiveTimeout = TimeSpan.FromMilliseconds(timeout).Subtract(DateTime.UtcNow.Subtract(startTimestamp));
 
                     if (receiveTimeout.TotalMilliseconds >= 50)
@@ -264,7 +291,11 @@ namespace RICADO.AveryWeighTronix.Channels
 
                         if (receivedBytes > 0)
                         {
+#if NETSTANDARD
+                            receivedData.AddRange(buffer.Take(receivedBytes));
+#else
                             receivedData.AddRange(buffer.Slice(0, receivedBytes).ToArray());
+#endif
 
                             result.Bytes += receivedBytes;
                             result.Packets += 1;
@@ -326,11 +357,19 @@ namespace RICADO.AveryWeighTronix.Channels
             return true;
         }
 
+#if NETSTANDARD
+        private byte[] trimReceivedData(ProtocolType protocol, List<byte> receivedData)
+#else
         private Memory<byte> trimReceivedData(ProtocolType protocol, List<byte> receivedData)
+#endif
         {
             if (receivedData.Count == 0)
             {
+#if NETSTANDARD
+                return Array.Empty<byte>();
+#else
                 return Memory<byte>.Empty;
+#endif
             }
 
             byte stxByte = protocol == ProtocolType.SMA ? SMA.Response.STX : (byte)0;

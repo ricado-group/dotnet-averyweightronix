@@ -14,19 +14,32 @@ namespace RICADO.AveryWeighTronix.SMA
 
         #region Constructor
 
+#if NETSTANDARD
+        protected TareCommandResponse(Request request, byte[] responseMessage) : base(request, responseMessage)
+        {
+        }
+#else
         protected TareCommandResponse(Request request, Memory<byte> responseMessage) : base(request, responseMessage)
         {
         }
+#endif
 
         #endregion
 
 
         #region Public Methods
 
+#if NETSTANDARD
+        public static void ValidateResponseMessage(TareCommandRequest request, byte[] responseMessage)
+        {
+            _ = new TareCommandResponse(request, responseMessage);
+        }
+#else
         public static void ValidateResponseMessage(TareCommandRequest request, Memory<byte> responseMessage)
         {
             _ = new TareCommandResponse(request, responseMessage);
         }
+#endif
 
         #endregion
 
