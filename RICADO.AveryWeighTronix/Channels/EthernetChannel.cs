@@ -69,13 +69,13 @@ namespace RICADO.AveryWeighTronix.Channels
 
         public async Task InitializeAsync(int timeout, CancellationToken cancellationToken)
         {
+            if (!_semaphore.Wait(0))
+            {
+                await _semaphore.WaitAsync(cancellationToken);
+            }
+
             try
             {
-                if (!_semaphore.Wait(0))
-                {
-                    await _semaphore.WaitAsync(cancellationToken);
-                }
-
                 destroyClient();
 
                 await initializeClient(timeout, cancellationToken);
@@ -107,13 +107,13 @@ namespace RICADO.AveryWeighTronix.Channels
 
             while (attempts <= retries)
             {
+                if (!_semaphore.Wait(0))
+                {
+                    await _semaphore.WaitAsync(cancellationToken);
+                }
+
                 try
                 {
-                    if (!_semaphore.Wait(0))
-                    {
-                        await _semaphore.WaitAsync(cancellationToken);
-                    }
-
                     if (attempts > 0)
                     {
                         await destroyAndInitializeClient(timeout, cancellationToken);
